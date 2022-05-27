@@ -6,7 +6,7 @@
 pub trait IntoMaybeParallelIterator {
     type Item;
     #[cfg(not(feature = "rayon"))]
-    type Iter: Iterator;
+    type Iter: Iterator<Item = Self::Item>;
     #[cfg(feature = "rayon")]
     type Iter: rayon::iter::ParallelIterator<Item = Self::Item>;
 
