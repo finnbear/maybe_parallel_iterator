@@ -4,6 +4,8 @@ authors = ["Finn Bear"]
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2021"
+repository = "https://github.com/finnbear/maybe_parallel_iterator/"
+description = "Toggle parallelism on and off with feature flags!"
 
 [dependencies]
 rayon = {version = "1", optional = true}
