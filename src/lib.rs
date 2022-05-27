@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 /// Extends iterable collections with a function to create a [`Computation`].
 ///
 /// If the `rayon` feature is enabled, this will implemented and be implemented for `IntoParallelIterator`.
@@ -246,10 +248,130 @@ impl<IT: rayon::iter::ParallelIterator> rayon::iter::ParallelIterator
     }
 }
 
+pub trait MaybeParallelSort<T: Send> {
+    fn maybe_par_sort(&mut self)
+    where
+        T: Ord;
+
+    fn maybe_par_sort_unstable(&mut self)
+    where
+        T: Ord;
+
+    fn maybe_par_sort_by<F>(&mut self, compare: F)
+    where
+        F: Fn(&T, &T) -> Ordering + Sync;
+
+    fn maybe_par_sort_unstable_by<F>(&mut self, compare: F)
+    where
+        F: Fn(&T, &T) -> Ordering + Sync;
+
+    fn maybe_par_sort_by_key<F, K: Ord>(&mut self, f: F)
+    where
+        F: Fn(&T) -> K + Sync;
+
+    fn maybe_par_sort_unstable_by_key<F, K: Ord>(&mut self, f: F)
+    where
+        F: Fn(&T) -> K + Sync;
+}
+
+#[cfg(not(feature = "rayon"))]
+impl<T: Send> MaybeParallelSort<T> for [T] {
+    fn maybe_par_sort(&mut self)
+    where
+        T: Ord,
+    {
+        self.sort()
+    }
+
+    fn maybe_par_sort_unstable(&mut self)
+    where
+        T: Ord,
+    {
+        self.sort_unstable()
+    }
+
+    fn maybe_par_sort_by<F>(&mut self, compare: F)
+    where
+        F: Fn(&T, &T) -> Ordering + Sync,
+    {
+        self.sort_by(compare)
+    }
+
+    fn maybe_par_sort_unstable_by<F>(&mut self, compare: F)
+    where
+        F: Fn(&T, &T) -> Ordering + Sync,
+    {
+        self.sort_unstable_by(compare)
+    }
+
+    fn maybe_par_sort_by_key<F, K: Ord>(&mut self, f: F)
+    where
+        F: Fn(&T) -> K + Sync,
+    {
+        self.sort_by_key(f)
+    }
+
+    fn maybe_par_sort_unstable_by_key<F, K: Ord>(&mut self, f: F)
+    where
+        F: Fn(&T) -> K + Sync,
+    {
+        self.sort_unstable_by_key(f)
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<T: Send, C> MaybeParallelSort<T> for C
+where
+    C: rayon::slice::ParallelSliceMut<T> + ?Sized,
+{
+    fn maybe_par_sort(&mut self)
+    where
+        T: Ord,
+    {
+        self.par_sort()
+    }
+
+    fn maybe_par_sort_unstable(&mut self)
+    where
+        T: Ord,
+    {
+        self.par_sort_unstable()
+    }
+
+    fn maybe_par_sort_by<F>(&mut self, compare: F)
+    where
+        F: Fn(&T, &T) -> Ordering + Sync,
+    {
+        self.par_sort_by(compare)
+    }
+
+    fn maybe_par_sort_unstable_by<F>(&mut self, compare: F)
+    where
+        F: Fn(&T, &T) -> Ordering + Sync,
+    {
+        self.par_sort_unstable_by(compare)
+    }
+
+    fn maybe_par_sort_by_key<F, K: Ord>(&mut self, f: F)
+    where
+        F: Fn(&T) -> K + Sync,
+    {
+        self.par_sort_by_key(f)
+    }
+
+    fn maybe_par_sort_unstable_by_key<F, K: Ord>(&mut self, f: F)
+    where
+        F: Fn(&T) -> K + Sync,
+    {
+        self.par_sort_unstable_by_key(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
         IntoMaybeParallelIterator, IntoMaybeParallelRefIterator, IntoMaybeParallelRefMutIterator,
+        MaybeParallelSort,
     };
 
     #[test]
@@ -267,6 +389,10 @@ mod tests {
             .for_each(|item| {
                 println!("seq: {:?}", item);
             });
+
+        let mut to_sort: Vec<i32> = vec![5, 2, 2, 6, 1, 6];
+        to_sort.maybe_par_sort();
+        println!("{:?}", to_sort);
     }
 
     #[test]
@@ -285,6 +411,10 @@ mod tests {
             .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iter())
             .for_each(|item| {
                 println!("par: {:?}", item);
-            })
+            });
+
+        let mut to_sort: Vec<i32> = vec![5, 2, 2, 6, 1, 6];
+        to_sort.maybe_par_sort();
+        println!("{:?}", to_sort);
     }
 }

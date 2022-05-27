@@ -16,9 +16,17 @@ a.into_maybe_parallel_iterator()
 
 ## Features
 
-- `into_maybe_par_iter`
-- `maybe_par_iter`
-- `maybe_par_iter_mut`
+- Iterators
+  - `into_maybe_par_iter`
+  - `maybe_par_iter`
+  - `maybe_par_iter_mut`
+- Sorts
+  - `maybe_par_sort`
+  - `maybe_par_sort_unstable`
+  - `maybe_par_sort_by`
+  - `maybe_par_sort_unstable_by`
+  - `maybe_par_sort_by_key`
+  - `maybe_par_sort_unstable_by_key`
 
 Use the `rayon` feature flag to enable [rayon](https://github.com/rayon-rs/rayon) parallelism.
 
@@ -26,7 +34,7 @@ The default is sequential ("rayoff" mode).
 
 ## Limitations
 
-For now, only supports:
+For now, only supports these iterator adapters:
 
 - *`enumerate`
 - `find_any`
