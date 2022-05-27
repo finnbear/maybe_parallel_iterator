@@ -4,13 +4,32 @@
 ///
 /// Otherwise, this will implement and be implemented for `IntoIterator`.
 pub trait IntoMaybeParallelIterator {
-    type Item;
     #[cfg(not(feature = "rayon"))]
     type Iter: Iterator;
     #[cfg(feature = "rayon")]
-    type Iter: rayon::iter::IndexedParallelIterator;
+    type Iter: rayon::iter::ParallelIterator;
 
-    fn into_maybe_parallel_iterator(self) -> MaybeParallelIterator<Self::Iter>;
+    fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter>;
+}
+
+/// Like [`IntoMaybeParallelIterator`] but borrows.
+pub trait IntoMaybeParallelRefIterator<'a> {
+    #[cfg(not(feature = "rayon"))]
+    type Iter: Iterator;
+    #[cfg(feature = "rayon")]
+    type Iter: rayon::iter::ParallelIterator;
+
+    fn maybe_par_iter(&'a mut self) -> MaybeParallelIterator<Self::Iter>;
+}
+
+/// Like [`IntoMaybeParallelIterator`] but borrows mutably.
+pub trait IntoMaybeParallelRefMutIterator<'a> {
+    #[cfg(not(feature = "rayon"))]
+    type Iter: Iterator;
+    #[cfg(feature = "rayon")]
+    type Iter: rayon::iter::ParallelIterator;
+
+    fn maybe_par_iter_mut(&'a mut self) -> MaybeParallelIterator<Self::Iter>;
 }
 
 /// An iterator that may be sequential or parallel depending on feature flags.
@@ -19,14 +38,34 @@ pub trait IntoMaybeParallelIterator {
 pub struct MaybeParallelIterator<IT: Iterator>(IT);
 
 #[cfg(not(feature = "rayon"))]
-impl<I, IIT> IntoMaybeParallelIterator for IIT
-where
-    IIT: IntoIterator<Item = I>,
-{
-    type Item = I;
+impl<IIT: IntoIterator> IntoMaybeParallelIterator for IIT {
     type Iter = IIT::IntoIter;
 
-    fn into_maybe_parallel_iterator(self) -> MaybeParallelIterator<Self::Iter> {
+    fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter> {
+        MaybeParallelIterator(self.into_iter())
+    }
+}
+
+#[cfg(not(feature = "rayon"))]
+impl<'a, IIT: 'a> IntoMaybeParallelRefIterator<'a> for IIT
+where
+    &'a IIT: IntoIterator,
+{
+    type Iter = <&'a IIT as IntoIterator>::IntoIter;
+
+    fn maybe_par_iter(&'a mut self) -> MaybeParallelIterator<Self::Iter> {
+        MaybeParallelIterator(self.into_iter())
+    }
+}
+
+#[cfg(not(feature = "rayon"))]
+impl<'a, IIT: 'a> IntoMaybeParallelRefMutIterator<'a> for IIT
+where
+    &'a mut IIT: IntoIterator,
+{
+    type Iter = <&'a mut IIT as IntoIterator>::IntoIter;
+
+    fn maybe_par_iter_mut(&'a mut self) -> MaybeParallelIterator<Self::Iter> {
         MaybeParallelIterator(self.into_iter())
     }
 }
@@ -96,16 +135,39 @@ impl<IT: Iterator> IntoIterator for MaybeParallelIterator<IT> {
 pub struct MaybeParallelIterator<IT: rayon::iter::ParallelIterator>(IT);
 
 #[cfg(feature = "rayon")]
-impl<I, IIT> IntoMaybeParallelIterator for IIT
+impl<IIT> IntoMaybeParallelIterator for IIT
 where
-    IIT: rayon::iter::IntoParallelIterator<Item = I>,
+    IIT: rayon::iter::IntoParallelIterator,
     <IIT as rayon::iter::IntoParallelIterator>::Iter: rayon::iter::IndexedParallelIterator,
 {
-    type Item = I;
     type Iter = IIT::Iter;
 
-    fn into_maybe_parallel_iterator(self) -> MaybeParallelIterator<Self::Iter> {
+    fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter> {
         MaybeParallelIterator(self.into_par_iter())
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<'a, IIT: 'a> IntoMaybeParallelRefIterator<'a> for IIT
+where
+    IIT: rayon::iter::IntoParallelRefIterator<'a>,
+{
+    type Iter = IIT::Iter;
+
+    fn maybe_par_iter(&'a mut self) -> MaybeParallelIterator<Self::Iter> {
+        MaybeParallelIterator(self.par_iter())
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<'a, IIT: 'a> IntoMaybeParallelRefMutIterator<'a> for IIT
+where
+    IIT: rayon::iter::IntoParallelRefMutIterator<'a>,
+{
+    type Iter = IIT::Iter;
+
+    fn maybe_par_iter_mut(&'a mut self) -> MaybeParallelIterator<Self::Iter> {
+        MaybeParallelIterator(self.par_iter_mut())
     }
 }
 
@@ -173,31 +235,41 @@ impl<IT: rayon::iter::ParallelIterator> rayon::iter::ParallelIterator
 
 #[cfg(test)]
 mod tests {
-    use crate::IntoMaybeParallelIterator;
+    use crate::{
+        IntoMaybeParallelIterator, IntoMaybeParallelRefIterator, IntoMaybeParallelRefMutIterator,
+    };
 
     #[test]
     #[cfg(not(feature = "rayon"))]
     fn test_sequential() {
-        let a: Vec<i32> = (0..100).collect();
-        a.into_maybe_parallel_iterator()
+        let mut a: Vec<i32> = (0..100).collect();
+        a.maybe_par_iter().for_each(|item| println!("{}", item));
+        a.maybe_par_iter_mut().for_each(|item| *item -= 5);
+        println!("{:?}", a);
+        a.into_maybe_parallel_iter()
             .with_min_sequential(2)
             .map(|n| -n)
             .enumerate()
-            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iterator())
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iter())
             .for_each(|item| {
-                println!("par: {:?}", item);
-            })
+                println!("seq: {:?}", item);
+            });
     }
 
     #[test]
     #[cfg(feature = "rayon")]
     fn test_rayon() {
-        let a: Vec<i32> = (0..100).collect();
-        a.into_maybe_parallel_iterator()
+        let mut a: Vec<i32> = (0..100).collect();
+        a.maybe_par_iter()
+            .with_min_sequential(5)
+            .for_each(|item| println!("{}", item));
+        a.maybe_par_iter_mut().for_each(|item| *item -= 5);
+        println!("{:?}", a);
+        a.into_maybe_parallel_iter()
             .with_min_sequential(2)
             .map(|n| -n)
             .enumerate()
-            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iterator())
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iter())
             .for_each(|item| {
                 println!("par: {:?}", item);
             })

@@ -16,6 +16,10 @@ a.into_maybe_parallel_iterator()
 
 ## Features
 
+- `into_maybe_par_iter`
+- `maybe_par_iter`
+- `maybe_par_iter_mut`
+
 Use the `rayon` feature flag to enable [rayon](https://github.com/rayon-rs/rayon) parallelism.
 
 The default is sequential ("rayoff" mode).
