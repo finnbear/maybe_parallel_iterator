@@ -19,7 +19,7 @@ pub trait IntoMaybeParallelRefIterator<'a> {
     #[cfg(feature = "rayon")]
     type Iter: rayon::iter::ParallelIterator;
 
-    fn maybe_par_iter(&'a mut self) -> MaybeParallelIterator<Self::Iter>;
+    fn maybe_par_iter(&'a self) -> MaybeParallelIterator<Self::Iter>;
 }
 
 /// Like [`IntoMaybeParallelIterator`] but borrows mutably.
@@ -53,7 +53,7 @@ where
 {
     type Iter = <&'a IIT as IntoIterator>::IntoIter;
 
-    fn maybe_par_iter(&'a mut self) -> MaybeParallelIterator<Self::Iter> {
+    fn maybe_par_iter(&'a self) -> MaybeParallelIterator<Self::Iter> {
         MaybeParallelIterator(self.into_iter())
     }
 }
@@ -154,7 +154,7 @@ where
 {
     type Iter = IIT::Iter;
 
-    fn maybe_par_iter(&'a mut self) -> MaybeParallelIterator<Self::Iter> {
+    fn maybe_par_iter(&'a self) -> MaybeParallelIterator<Self::Iter> {
         MaybeParallelIterator(self.par_iter())
     }
 }
