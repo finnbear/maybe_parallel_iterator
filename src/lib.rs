@@ -4,10 +4,11 @@
 ///
 /// Otherwise, this will implement and be implemented for `IntoIterator`.
 pub trait IntoMaybeParallelIterator {
+    type Item;
     #[cfg(not(feature = "rayon"))]
     type Iter: Iterator;
     #[cfg(feature = "rayon")]
-    type Iter: rayon::iter::ParallelIterator;
+    type Iter: rayon::iter::ParallelIterator<Item = Self::Item>;
 
     fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter>;
 }
@@ -39,6 +40,7 @@ pub struct MaybeParallelIterator<IT: Iterator>(IT);
 
 #[cfg(not(feature = "rayon"))]
 impl<IIT: IntoIterator> IntoMaybeParallelIterator for IIT {
+    type Item = IIT::Item;
     type Iter = IIT::IntoIter;
 
     fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter> {
@@ -140,6 +142,7 @@ where
     IIT: rayon::iter::IntoParallelIterator,
     <IIT as rayon::iter::IntoParallelIterator>::Iter: rayon::iter::IndexedParallelIterator,
 {
+    type Item = IIT::Item;
     type Iter = IIT::Iter;
 
     fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter> {
