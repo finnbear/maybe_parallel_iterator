@@ -1,4 +1,4 @@
-# parallelize
+# maybe_parallel_iterator
 
 Write your code once. Then toggle between sequential and parallel iterators with a feature flag!
 
