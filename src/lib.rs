@@ -87,7 +87,6 @@ impl<IT: Iterator> IntoIterator for Computation<IT> {
     }
 }
 
-
 /// An iterator that may be sequential or parallel depending on feature flags.
 #[cfg(feature = "rayon")]
 #[repr(transparent)]
@@ -155,7 +154,10 @@ impl<IT: rayon::iter::IndexedParallelIterator> Computation<IT> {
 impl<IT: rayon::iter::ParallelIterator> rayon::iter::ParallelIterator for Computation<IT> {
     type Item = IT::Item;
 
-    fn drive_unindexed<C>(self, consumer: C) -> C::Result where C: rayon::iter::plumbing::UnindexedConsumer<Self::Item> {
+    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+    where
+        C: rayon::iter::plumbing::UnindexedConsumer<Self::Item>,
+    {
         self.0.drive_unindexed(consumer)
     }
 
