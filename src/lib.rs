@@ -3,38 +3,38 @@
 /// If the `rayon` feature is enabled, this will implemented and be implemented for `IntoParallelIterator`.
 ///
 /// Otherwise, this will implement and be implemented for `IntoIterator`.
-pub trait IntoComputation {
+pub trait IntoMaybeParallelIterator {
     type Item;
     #[cfg(not(feature = "rayon"))]
     type Iter: Iterator;
     #[cfg(feature = "rayon")]
     type Iter: rayon::iter::IndexedParallelIterator;
 
-    fn into_computation(self) -> Computation<Self::Iter>;
+    fn into_maybe_parallel_iterator(self) -> MaybeParallelIterator<Self::Iter>;
 }
 
 /// An iterator that may be sequential or parallel depending on feature flags.
 #[cfg(not(feature = "rayon"))]
 #[repr(transparent)]
-pub struct Computation<IT: Iterator>(IT);
+pub struct MaybeParallelIterator<IT: Iterator>(IT);
 
 #[cfg(not(feature = "rayon"))]
-impl<I, IIT> IntoComputation for IIT
+impl<I, IIT> IntoMaybeParallelIterator for IIT
 where
     IIT: IntoIterator<Item = I>,
 {
     type Item = I;
     type Iter = IIT::IntoIter;
 
-    fn into_computation(self) -> Computation<Self::Iter> {
-        Computation(self.into_iter())
+    fn into_maybe_parallel_iterator(self) -> MaybeParallelIterator<Self::Iter> {
+        MaybeParallelIterator(self.into_iter())
     }
 }
 
 #[cfg(not(feature = "rayon"))]
-impl<IT: Iterator> Computation<IT> {
+impl<IT: Iterator> MaybeParallelIterator<IT> {
     /// Do a computation on all items.
-    pub fn compute<O: Fn(IT::Item)>(self, op: O) {
+    pub fn for_each<O: Fn(IT::Item)>(self, op: O) {
         self.0.for_each(op)
     }
 
@@ -54,21 +54,24 @@ impl<IT: Iterator> Computation<IT> {
     ///
     /// Without `rayon` feature, this can be called in places `IndexedParallelIterator` would not
     /// apply. These uses won't compile under `rayon`.
-    pub fn enumerate(self) -> Computation<std::iter::Enumerate<IT>> {
-        Computation(self.0.enumerate())
+    pub fn enumerate(self) -> MaybeParallelIterator<std::iter::Enumerate<IT>> {
+        MaybeParallelIterator(self.0.enumerate())
     }
 
     /// Like iterator mapping.
-    pub fn map<O, M: Fn(IT::Item) -> O>(self, map: M) -> Computation<std::iter::Map<IT, M>> {
-        Computation(self.0.map(map))
+    pub fn map<O, M: Fn(IT::Item) -> O>(
+        self,
+        map: M,
+    ) -> MaybeParallelIterator<std::iter::Map<IT, M>> {
+        MaybeParallelIterator(self.0.map(map))
     }
 
     /// Like iterator flat-mapping.
     pub fn flat_map<O: IntoIterator, M: Fn(IT::Item) -> O>(
         self,
         map: M,
-    ) -> Computation<std::iter::FlatMap<IT, O, M>> {
-        Computation(self.0.flat_map(map))
+    ) -> MaybeParallelIterator<std::iter::FlatMap<IT, O, M>> {
+        MaybeParallelIterator(self.0.flat_map(map))
     }
 
     /// Get the inner iterator.
@@ -78,7 +81,7 @@ impl<IT: Iterator> Computation<IT> {
 }
 
 #[cfg(not(feature = "rayon"))]
-impl<IT: Iterator> IntoIterator for Computation<IT> {
+impl<IT: Iterator> IntoIterator for MaybeParallelIterator<IT> {
     type Item = IT::Item;
     type IntoIter = IT;
 
@@ -90,10 +93,10 @@ impl<IT: Iterator> IntoIterator for Computation<IT> {
 /// An iterator that may be sequential or parallel depending on feature flags.
 #[cfg(feature = "rayon")]
 #[repr(transparent)]
-pub struct Computation<IT: rayon::iter::ParallelIterator>(IT);
+pub struct MaybeParallelIterator<IT: rayon::iter::ParallelIterator>(IT);
 
 #[cfg(feature = "rayon")]
-impl<I, IIT> IntoComputation for IIT
+impl<I, IIT> IntoMaybeParallelIterator for IIT
 where
     IIT: rayon::iter::IntoParallelIterator<Item = I>,
     <IIT as rayon::iter::IntoParallelIterator>::Iter: rayon::iter::IndexedParallelIterator,
@@ -101,15 +104,15 @@ where
     type Item = I;
     type Iter = IIT::Iter;
 
-    fn into_computation(self) -> Computation<Self::Iter> {
-        Computation(self.into_par_iter())
+    fn into_maybe_parallel_iterator(self) -> MaybeParallelIterator<Self::Iter> {
+        MaybeParallelIterator(self.into_par_iter())
     }
 }
 
 #[cfg(feature = "rayon")]
-impl<IT: rayon::iter::ParallelIterator> Computation<IT> {
+impl<IT: rayon::iter::ParallelIterator> MaybeParallelIterator<IT> {
     /// Do a computation on all items.
-    pub fn compute<O: Fn(IT::Item) + Sync + Send>(self, op: O) {
+    pub fn for_each<O: Fn(IT::Item) + Sync + Send>(self, op: O) {
         self.0.for_each(op)
     }
 
@@ -117,16 +120,16 @@ impl<IT: rayon::iter::ParallelIterator> Computation<IT> {
     pub fn map<O: Send, M: Fn(IT::Item) -> O + Send + Sync>(
         self,
         map: M,
-    ) -> Computation<rayon::iter::Map<IT, M>> {
-        Computation(self.0.map(map))
+    ) -> MaybeParallelIterator<rayon::iter::Map<IT, M>> {
+        MaybeParallelIterator(self.0.map(map))
     }
 
     /// Like iterator flat mapping.
     pub fn flat_map<O: rayon::iter::IntoParallelIterator, M: Fn(IT::Item) -> O + Send + Sync>(
         self,
         map: M,
-    ) -> Computation<rayon::iter::FlatMap<IT, M>> {
-        Computation(self.0.flat_map(map))
+    ) -> MaybeParallelIterator<rayon::iter::FlatMap<IT, M>> {
+        MaybeParallelIterator(self.0.flat_map(map))
     }
 
     /// Get the inner parallel iterator.
@@ -136,22 +139,24 @@ impl<IT: rayon::iter::ParallelIterator> Computation<IT> {
 }
 
 #[cfg(feature = "rayon")]
-impl<IT: rayon::iter::IndexedParallelIterator> Computation<IT> {
-    pub fn enumerate(self) -> Computation<rayon::iter::Enumerate<IT>> {
-        Computation(self.0.enumerate())
+impl<IT: rayon::iter::IndexedParallelIterator> MaybeParallelIterator<IT> {
+    pub fn enumerate(self) -> MaybeParallelIterator<rayon::iter::Enumerate<IT>> {
+        MaybeParallelIterator(self.0.enumerate())
     }
 
     /// Process at least this many items sequentially (no-op unless `rayon` feature enabled).
     pub fn with_min_sequential(
         self,
         min_sequential: usize,
-    ) -> Computation<rayon::iter::MinLen<IT>> {
-        Computation(self.0.with_min_len(min_sequential))
+    ) -> MaybeParallelIterator<rayon::iter::MinLen<IT>> {
+        MaybeParallelIterator(self.0.with_min_len(min_sequential))
     }
 }
 
 #[cfg(feature = "rayon")]
-impl<IT: rayon::iter::ParallelIterator> rayon::iter::ParallelIterator for Computation<IT> {
+impl<IT: rayon::iter::ParallelIterator> rayon::iter::ParallelIterator
+    for MaybeParallelIterator<IT>
+{
     type Item = IT::Item;
 
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
@@ -168,18 +173,18 @@ impl<IT: rayon::iter::ParallelIterator> rayon::iter::ParallelIterator for Comput
 
 #[cfg(test)]
 mod tests {
-    use crate::IntoComputation;
+    use crate::IntoMaybeParallelIterator;
 
     #[test]
     #[cfg(not(feature = "rayon"))]
     fn test_sequential() {
         let a: Vec<i32> = (0..100).collect();
-        a.into_computation()
+        a.into_maybe_parallel_iterator()
             .with_min_sequential(2)
             .map(|n| -n)
             .enumerate()
-            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_computation())
-            .compute(|item| {
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iterator())
+            .for_each(|item| {
                 println!("par: {:?}", item);
             })
     }
@@ -188,12 +193,12 @@ mod tests {
     #[cfg(feature = "rayon")]
     fn test_rayon() {
         let a: Vec<i32> = (0..100).collect();
-        a.into_computation()
+        a.into_maybe_parallel_iterator()
             .with_min_sequential(2)
             .map(|n| -n)
             .enumerate()
-            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_computation())
-            .compute(|item| {
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iterator())
+            .for_each(|item| {
                 println!("par: {:?}", item);
             })
     }
