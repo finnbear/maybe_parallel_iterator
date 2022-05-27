@@ -29,9 +29,10 @@ The default is sequential ("rayoff" mode).
 For now, only supports:
 
 - *`enumerate`
+- `find_any`
+- `flat_map`
 - `for_each`
 - `map`
-- `flat_map`
 - *`with_min_sequential` (no-op unless `rayon` feature enabled)
 
 *Only available for `IndexedParallelIterator`'s if `rayon` feature enabled.

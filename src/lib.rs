@@ -115,6 +115,11 @@ impl<IT: Iterator> MaybeParallelIterator<IT> {
         MaybeParallelIterator(self.0.flat_map(map))
     }
 
+    /// Like iterator find (but won't necessarily return the first match).
+    pub fn find_any<F: Fn(&IT::Item) -> bool>(mut self, f: F) -> Option<IT::Item> {
+        self.0.find(f)
+    }
+
     /// Get the inner iterator.
     pub fn into_inner(self) -> IT {
         self.0
@@ -195,6 +200,11 @@ impl<IT: rayon::iter::ParallelIterator> MaybeParallelIterator<IT> {
         map: M,
     ) -> MaybeParallelIterator<rayon::iter::FlatMap<IT, M>> {
         MaybeParallelIterator(self.0.flat_map(map))
+    }
+
+    /// Like iterator find (but won't necessarily return the first match).
+    pub fn find_any<F: Fn(&IT::Item) -> bool + Send + Sync>(self, f: F) -> Option<IT::Item> {
+        self.0.find_any(f)
     }
 
     /// Get the inner parallel iterator.
