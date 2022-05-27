@@ -76,6 +76,13 @@ where
 
 #[cfg(not(feature = "rayon"))]
 impl<IT: Iterator> MaybeParallelIterator<IT> {
+    pub fn collect<B: FromIterator<IT::Item>>(self) -> B
+    where
+        Self: Sized,
+    {
+        FromIterator::from_iter(self)
+    }
+
     /// Do a computation on all items.
     pub fn for_each<O: Fn(IT::Item)>(self, op: O) {
         self.0.for_each(op)
@@ -191,6 +198,13 @@ where
 
 #[cfg(feature = "rayon")]
 impl<IT: rayon::iter::ParallelIterator> MaybeParallelIterator<IT> {
+    pub fn collect<C>(self) -> C
+    where
+        C: rayon::iter::FromParallelIterator<IT::Item>,
+    {
+        C::from_par_iter(self)
+    }
+
     /// Do a computation on all items.
     pub fn for_each<O: Fn(IT::Item) + Sync + Send>(self, op: O) {
         self.0.for_each(op)
