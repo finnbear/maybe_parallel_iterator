@@ -1,23 +1,18 @@
-#[cfg(feature = "rayon")]
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator};
-use std::iter::Enumerate;
+#![feature(generic_associated_types)]
 
-trait Computation {
+pub trait IntoComputation {
     type Item;
-    type MinSequential;
-    type Enumerated;
+    #[cfg(not(feature = "rayon"))]
+    type Iter: Iterator;
+    #[cfg(feature = "rayon")]
+    type Iter: rayon::iter::IndexedParallelIterator;
 
-    fn compute<O: Fn(Self::Item) + Sync + Send>(self, op: O);
-    fn with_min_sequential(self, size: usize) -> Self::MinSequential;
-    fn enumerate(self) -> Self::Enumerated;
+    fn into_computation(self) -> Computation<Self::Iter>;
 }
 
-trait IntoComputation {
-    type Item;
-    type Computation: Computation<Item = Self::Item>;
-
-    fn into_computation(self) -> Self::Computation;
-}
+#[cfg(not(feature = "rayon"))]
+#[repr(transparent)]
+pub struct Computation<IT: Iterator>(IT);
 
 #[cfg(not(feature = "rayon"))]
 impl<I, IIT> IntoComputation for IIT
@@ -25,83 +20,122 @@ where
     IIT: IntoIterator<Item = I>,
 {
     type Item = I;
-    type Computation = SequentialComputation<IIT::IntoIter>;
+    type Iter = IIT::IntoIter;
 
-    fn into_computation(self) -> Self::Computation {
-        SequentialComputation(self.into_iter())
+    fn into_computation(self) -> Computation<Self::Iter> {
+        Computation(self.into_iter())
     }
 }
 
-pub struct SequentialComputation<IT: Iterator>(IT);
-
-impl<IT: Iterator> Computation for SequentialComputation<IT> {
-    type Item = IT::Item;
-    type MinSequential = Self;
-    type Enumerated = SequentialComputation<Enumerate<IT>>;
-
-    fn compute<O: Fn(Self::Item) + Sync + Send>(self, op: O) {
+#[cfg(not(feature = "rayon"))]
+impl<IT: Iterator> Computation<IT> {
+    pub fn compute<O: Fn(IT::Item) + Sync + Send>(self, op: O) {
         self.0.for_each(op)
     }
 
-    fn with_min_sequential(self, _: usize) -> Self::MinSequential {
+    pub fn with_min_sequential(self, _: usize) -> Self {
         self
     }
 
-    fn enumerate(self) -> Self::Enumerated {
-        SequentialComputation(self.0.enumerate())
+    pub fn enumerate(self) -> Computation<std::iter::Enumerate<IT>> {
+        Computation(self.0.enumerate())
+    }
+
+    pub fn map<O, M: Fn(IT::Item) -> O>(self, map: M) -> Computation<std::iter::Map<IT, M>> {
+        Computation(self.0.map(map))
+    }
+
+    pub fn flat_map<O: IntoIterator, M: Fn(IT::Item) -> O>(
+        self,
+        map: M,
+    ) -> Computation<std::iter::FlatMap<IT, O, M>> {
+        Computation(self.0.flat_map(map))
+    }
+
+    pub fn into_inner(self) -> IT {
+        self.0
+    }
+}
+
+#[cfg(not(feature = "rayon"))]
+impl<IT: Iterator> IntoIterator for Computation<IT> {
+    type Item = IT::Item;
+    type IntoIter = IT;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.into_inner()
     }
 }
 
 #[cfg(feature = "rayon")]
 impl<I, IIT> IntoComputation for IIT
 where
-    IIT: IntoParallelIterator<Item = I>,
-    <IIT as IntoParallelIterator>::Iter: IndexedParallelIterator,
+    IIT: rayon::iter::IntoParallelIterator<Item = I>,
+    <IIT as rayon::iter::IntoParallelIterator>::Iter: rayon::iter::IndexedParallelIterator,
 {
     type Item = I;
-    type Computation = RayonComputation<IIT::Iter>;
+    type Iter = IIT::Iter;
 
-    fn into_computation(self) -> Self::Computation {
-        RayonComputation(self.into_par_iter())
+    fn into_computation(self) -> Computation<Self::Iter> {
+        Computation(self.into_par_iter())
     }
 }
 
 #[cfg(feature = "rayon")]
-pub struct RayonComputation<IT: IndexedParallelIterator>(IT);
+#[repr(transparent)]
+pub struct Computation<IT: rayon::iter::ParallelIterator>(IT);
 
 #[cfg(feature = "rayon")]
-impl<IT: IndexedParallelIterator> Computation for RayonComputation<IT> {
-    type Item = IT::Item;
-    type MinSequential = RayonComputation<rayon::iter::MinLen<IT>>;
-    type Enumerated = RayonComputation<rayon::iter::Enumerate<IT>>;
-
-    fn compute<O: Fn(Self::Item) + Sync + Send>(self, op: O) {
+impl<IT: rayon::iter::ParallelIterator> Computation<IT> {
+    pub fn compute<O: Fn(IT::Item) + Sync + Send>(self, op: O) {
         self.0.for_each(op)
     }
 
-    fn with_min_sequential(self, min_sequential: usize) -> Self::MinSequential {
-        RayonComputation(self.0.with_min_len(min_sequential))
+    pub fn map<O: Send, M: Fn(IT::Item) -> O + Send + Sync>(
+        self,
+        map: M,
+    ) -> Computation<rayon::iter::Map<IT, M>> {
+        Computation(self.0.map(map))
     }
 
-    fn enumerate(self) -> Self::Enumerated {
-        RayonComputation(self.0.enumerate())
+    pub fn flat_map<O: rayon::iter::IntoParallelIterator, M: Fn(IT::Item) -> O + Send + Sync>(
+        self,
+        map: M,
+    ) -> Computation<rayon::iter::FlatMap<IT, M>> {
+        Computation(self.0.flat_map(map))
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<IT: rayon::iter::IndexedParallelIterator> Computation<IT> {
+    pub fn enumerate(self) -> Computation<rayon::iter::Enumerate<IT>> {
+        Computation(self.0.enumerate())
+    }
+
+    pub fn with_min_sequential(
+        self,
+        min_sequential: usize,
+    ) -> Computation<rayon::iter::MinLen<IT>> {
+        Computation(self.0.with_min_len(min_sequential))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Computation, IntoComputation};
+    use crate::IntoComputation;
 
     #[test]
     #[cfg(not(feature = "rayon"))]
     fn test_sequential() {
         let a: Vec<i32> = (0..100).collect();
         a.into_computation()
-            .enumerate()
             .with_min_sequential(2)
+            .map(|n| -n)
+            .enumerate()
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000])
             .compute(|item| {
-                println!("seq: {:?}", item);
-            });
+                println!("par: {:?}", item);
+            })
     }
 
     #[test]
@@ -109,8 +143,10 @@ mod tests {
     fn test_rayon() {
         let a: Vec<i32> = (0..100).collect();
         a.into_computation()
-            .enumerate()
             .with_min_sequential(2)
+            .map(|n| -n)
+            .enumerate()
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000])
             .compute(|item| {
                 println!("par: {:?}", item);
             })
