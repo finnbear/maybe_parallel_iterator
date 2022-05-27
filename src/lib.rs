@@ -109,6 +109,14 @@ impl<IT: Iterator> MaybeParallelIterator<IT> {
         MaybeParallelIterator(self.0.map(map))
     }
 
+    /// Like iterator filter mapping.
+    pub fn filter_map<O, M: Fn(IT::Item) -> Option<O>>(
+        self,
+        map: M,
+    ) -> MaybeParallelIterator<std::iter::FilterMap<IT, M>> {
+        MaybeParallelIterator(self.0.filter_map(map))
+    }
+
     /// Like iterator flat-mapping.
     pub fn flat_map<O: IntoIterator, M: Fn(IT::Item) -> O>(
         self,
@@ -194,6 +202,14 @@ impl<IT: rayon::iter::ParallelIterator> MaybeParallelIterator<IT> {
         map: M,
     ) -> MaybeParallelIterator<rayon::iter::Map<IT, M>> {
         MaybeParallelIterator(self.0.map(map))
+    }
+
+    /// Like iterator filter mapping.
+    pub fn filter_map<O: Send, M: Fn(IT::Item) -> Option<O> + Send + Sync>(
+        self,
+        map: M,
+    ) -> MaybeParallelIterator<rayon::iter::FilterMap<IT, M>> {
+        MaybeParallelIterator(self.0.filter_map(map))
     }
 
     /// Like iterator flat mapping.

@@ -37,6 +37,7 @@ The default is sequential ("rayoff" mode).
 For now, only supports these iterator adapters:
 
 - *`enumerate`
+- `filter_map`
 - `find_any`
 - `flat_map`
 - `for_each`
