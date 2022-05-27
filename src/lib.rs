@@ -162,7 +162,6 @@ pub struct MaybeParallelIterator<IT: rayon::iter::ParallelIterator>(IT);
 impl<IIT> IntoMaybeParallelIterator for IIT
 where
     IIT: rayon::iter::IntoParallelIterator,
-    <IIT as rayon::iter::IntoParallelIterator>::Iter: rayon::iter::IndexedParallelIterator,
 {
     type Item = IIT::Item;
     type Iter = IIT::Iter;
