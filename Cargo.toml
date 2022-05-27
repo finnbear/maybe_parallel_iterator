@@ -1,0 +1,10 @@
+[package]
+name = "parallelize"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rayon = {version = "1.4", optional = true}
+
+[features]
+default = []
