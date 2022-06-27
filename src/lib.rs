@@ -12,7 +12,7 @@ pub trait IntoMaybeParallelIterator {
     #[cfg(feature = "rayon")]
     type Iter: rayon::iter::ParallelIterator<Item = Self::Item>;
 
-    fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter>;
+    fn into_maybe_par_iter(self) -> MaybeParallelIterator<Self::Iter>;
 }
 
 /// Like [`IntoMaybeParallelIterator`] but borrows.
@@ -45,7 +45,7 @@ impl<IIT: IntoIterator> IntoMaybeParallelIterator for IIT {
     type Item = IIT::Item;
     type Iter = IIT::IntoIter;
 
-    fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter> {
+    fn into_maybe_par_iter(self) -> MaybeParallelIterator<Self::Iter> {
         MaybeParallelIterator(self.into_iter())
     }
 }
@@ -166,7 +166,7 @@ where
     type Item = IIT::Item;
     type Iter = IIT::Iter;
 
-    fn into_maybe_parallel_iter(self) -> MaybeParallelIterator<Self::Iter> {
+    fn into_maybe_par_iter(self) -> MaybeParallelIterator<Self::Iter> {
         MaybeParallelIterator(self.into_par_iter())
     }
 }
@@ -194,6 +194,34 @@ where
         MaybeParallelIterator(self.par_iter_mut())
     }
 }
+
+/*
+#[cfg(feature = "rayon")]
+impl<T> IntoMaybeParallelIterator for Range<T>
+    where
+        rayon::range::Iter<T>: rayon::prelude::ParallelIterator,
+{
+    type Item = T;
+    type Iter = rayon::range::Iter<T>;
+
+    fn into_maybe_par_iter(self) -> Self::Iter {
+        rayon::range::Iter { range: self }
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<T> IntoMaybeParallelIterator for RangeInclusive<T>
+    where
+        rayon::range_inclusive::Iter<T>: rayon::prelude::ParallelIterator,
+{
+    type Item = T;
+    type Iter = rayon::range_inclusive::Iter<T>;
+
+    fn into_maybe_par_iter(self) -> Self::Iter {
+        rayon::range_inclusive::Iter { range: self }
+    }
+}
+ */
 
 #[cfg(feature = "rayon")]
 impl<IT: rayon::iter::ParallelIterator> MaybeParallelIterator<IT> {
@@ -410,11 +438,11 @@ mod tests {
         a.maybe_par_iter().for_each(|item| println!("{}", item));
         a.maybe_par_iter_mut().for_each(|item| *item -= 5);
         println!("{:?}", a);
-        a.into_maybe_parallel_iter()
+        a.into_maybe_par_iter()
             .with_min_sequential(2)
             .map(|n| -n)
             .enumerate()
-            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iter())
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_par_iter())
             .for_each(|item| {
                 println!("seq: {:?}", item);
             });
@@ -429,6 +457,8 @@ mod tests {
         let slice_mut = owned.as_mut_slice();
         slice_mut.maybe_par_iter().for_each(|_| {});
         slice_mut.maybe_par_iter_mut().for_each(|_| {});
+
+        (0..10).into_maybe_par_iter().for_each(|_| {});
     }
 
     #[test]
@@ -440,11 +470,11 @@ mod tests {
             .for_each(|item| println!("{}", item));
         a.maybe_par_iter_mut().for_each(|item| *item -= 5);
         println!("{:?}", a);
-        a.into_maybe_parallel_iter()
+        a.into_maybe_par_iter()
             .with_min_sequential(2)
             .map(|n| -n)
             .enumerate()
-            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_parallel_iter())
+            .flat_map(|(e, n)| vec![e as i32, n, n + 1000].into_maybe_par_iter())
             .for_each(|item| {
                 println!("par: {:?}", item);
             });
@@ -459,5 +489,7 @@ mod tests {
         let slice_mut = owned.as_mut_slice();
         slice_mut.maybe_par_iter().for_each(|_| {});
         slice_mut.maybe_par_iter_mut().for_each(|_| {});
+
+        (0..10).into_maybe_par_iter().for_each(|_| {});
     }
 }
