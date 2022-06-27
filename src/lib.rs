@@ -51,7 +51,7 @@ impl<IIT: IntoIterator> IntoMaybeParallelIterator for IIT {
 }
 
 #[cfg(not(feature = "rayon"))]
-impl<'a, IIT: 'a> IntoMaybeParallelRefIterator<'a> for IIT
+impl<'a, IIT: 'a + ?Sized> IntoMaybeParallelRefIterator<'a> for IIT
 where
     &'a IIT: IntoIterator,
 {
@@ -63,7 +63,7 @@ where
 }
 
 #[cfg(not(feature = "rayon"))]
-impl<'a, IIT: 'a> IntoMaybeParallelRefMutIterator<'a> for IIT
+impl<'a, IIT: 'a + ?Sized> IntoMaybeParallelRefMutIterator<'a> for IIT
 where
     &'a mut IIT: IntoIterator,
 {
@@ -174,7 +174,7 @@ where
 #[cfg(feature = "rayon")]
 impl<'a, IIT: 'a> IntoMaybeParallelRefIterator<'a> for IIT
 where
-    IIT: rayon::iter::IntoParallelRefIterator<'a>,
+    IIT: rayon::iter::IntoParallelRefIterator<'a> + ?Sized,
 {
     type Iter = IIT::Iter;
 
@@ -186,7 +186,7 @@ where
 #[cfg(feature = "rayon")]
 impl<'a, IIT: 'a> IntoMaybeParallelRefMutIterator<'a> for IIT
 where
-    IIT: rayon::iter::IntoParallelRefMutIterator<'a>,
+    IIT: rayon::iter::IntoParallelRefMutIterator<'a> + ?Sized,
 {
     type Iter = IIT::Iter;
 
@@ -422,6 +422,13 @@ mod tests {
         let mut to_sort: Vec<i32> = vec![5, 2, 2, 6, 1, 6];
         to_sort.maybe_par_sort();
         println!("{:?}", to_sort);
+
+        let mut owned = vec![1, 2, 3];
+        let slice = owned.as_slice();
+        slice.maybe_par_iter().for_each(|_| {});
+        let slice_mut = owned.as_mut_slice();
+        slice_mut.maybe_par_iter().for_each(|_| {});
+        slice_mut.maybe_par_iter_mut().for_each(|_| {});
     }
 
     #[test]
@@ -445,5 +452,12 @@ mod tests {
         let mut to_sort: Vec<i32> = vec![5, 2, 2, 6, 1, 6];
         to_sort.maybe_par_sort();
         println!("{:?}", to_sort);
+
+        let mut owned = vec![1, 2, 3];
+        let slice = owned.as_slice();
+        slice.maybe_par_iter().for_each(|_| {});
+        let slice_mut = owned.as_mut_slice();
+        slice_mut.maybe_par_iter().for_each(|_| {});
+        slice_mut.maybe_par_iter_mut().for_each(|_| {});
     }
 }
